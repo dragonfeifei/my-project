@@ -1,71 +1,62 @@
 import argparse
-import pandas as pd
-import numpy as np
-
-#def rollBy(what, basis, window, func):
-#    def applyToWindow(val):
-#        chunk = what[(val<=basis) & (basis<val+window)]
-#        return func(chunk)
-#    return basis.apply(applyToWindow)
-
-def rollBy(what, basis, window, func):
-    indexed_what = pd.Series(what.values,index=basis.values)
-    def applyToWindow(val):
-        indexer = indexed_what.index.slice_indexer(val,val+window-1,1)
-        chunk = indexed_what.iloc[indexer]
-        return func(chunk)
-    rolled = basis.apply(applyToWindow)
-    return rolled
+import csv
+from collections import defaultdict
 
 def main(actual_price_file, predicted_price_file, window_size_file, output_file):
     window_size = None
     with open(window_size_file, 'r') as file:
         window_size = int(file.read())
 
-    actual_df = pd.read_csv(
-        actual_price_file,
-        sep='|',
-        header=None,
-        names=['time', 'stock', 'price'])
-    predicted_df = pd.read_csv(
-        predicted_price_file,
-        sep='|',
-        header=None,
-        names=['time', 'stock', 'price'])
+    actual = defaultdict(dict)
+    with open(actual_price_file, 'r') as file:
+        reader = csv.reader(file, delimiter='|')
+        for row in reader:
+            if len(row) >= 3:
+                time = int(row[0])
+                stock = row[1]
+                price = float(row[2])
+                actual[time][stock] = price
 
-    actual_df.set_index(['time', 'stock'], inplace=True)
-    predicted_df.set_index(['time', 'stock'], inplace=True)
+    #print(actual)
+    start_time = min(actual.keys())
+    end_time = max(actual.keys())
 
-    joined_df = actual_df.join(
-        predicted_df, how='left', lsuffix='_actual',rsuffix='_predicted')
+    merged = defaultdict(list)
+    with open(predicted_price_file, 'r') as file:
+        reader = csv.reader(file, delimiter='|')
+        for row in reader:
+            if len(row) >= 3:
+                time = int(row[0])
+                stock = row[1]
+                price = float(row[2])
+                if time in actual and stock in actual[time]:
+                    error = abs(price - actual[time][stock])
+                    merged[time].append(error)
+    #print(merged)
 
-    joined_df['error'] = np.abs(
-        joined_df['price_actual'] - joined_df['price_predicted'])
-
-    joined_df.reset_index(inplace=True)
-
-    joined_df['avg_error'] = rollBy(
-        joined_df['error'], joined_df['time'], window_size, np.mean)
-
-    output_df = joined_df[['time', 'avg_error']]\
-        .drop_duplicates().set_index('time')
-
-    output_df = output_df\
-        .reindex(range(
-            output_df.index.min(), output_df.index.max() - window_size + 2))\
-        .reset_index()
-
-    output_df['end_time'] = output_df['time'] + window_size - 1
-
-    output_df[['time', 'end_time', 'avg_error']]\
-        .to_csv(
-            output_file,
-            sep='|',
-            header=None,
-            index=False,
-            na_rep='NA',
-            float_format='%.2f')
-
+    window_start = start_time
+    window_end = window_start + window_size - 1
+    total = 0
+    count = 0
+    first = True
+    with open(output_file, 'w') as file:
+        while window_end <= end_time:
+            if first:
+                for time in range(window_start, window_end+1):
+                    total+=sum(merged[time])
+                    count+=len(merged[time])
+                first = False
+            else:
+                total = total - sum(merged[window_start-1]) + sum(merged[window_end])
+                count = count - len(merged[window_start-1]) + len(merged[window_end])
+            if count > 0:
+                file.write(str(window_start) + '|' \
+                    + str(window_end) + '|' + '%.2f' % (total/count) + '\n')
+            else:
+                file.write(str(window_start) + '|' \
+                    + str(window_end) + '|NA\n')
+            window_start+=1
+            window_end+=1
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
