@@ -17,11 +17,10 @@ def main(actual_price_file, predicted_price_file, window_size_file, output_file)
                 price = float(row[2])
                 actual[time][stock] = price
 
-    #print(actual)
     start_time = min(actual.keys())
     end_time = max(actual.keys())
 
-    merged = defaultdict(list)
+    errors = defaultdict(list)
     with open(predicted_price_file, 'r') as file:
         reader = csv.reader(file, delimiter='|')
         for row in reader:
@@ -31,8 +30,7 @@ def main(actual_price_file, predicted_price_file, window_size_file, output_file)
                 price = float(row[2])
                 if time in actual and stock in actual[time]:
                     error = abs(price - actual[time][stock])
-                    merged[time].append(error)
-    #print(merged)
+                    errors[time].append(error)
 
     window_start = start_time
     window_end = window_start + window_size - 1
@@ -43,12 +41,12 @@ def main(actual_price_file, predicted_price_file, window_size_file, output_file)
         while window_end <= end_time:
             if first:
                 for time in range(window_start, window_end+1):
-                    total+=sum(merged[time])
-                    count+=len(merged[time])
+                    total+=sum(errors[time])
+                    count+=len(errors[time])
                 first = False
             else:
-                total = total - sum(merged[window_start-1]) + sum(merged[window_end])
-                count = count - len(merged[window_start-1]) + len(merged[window_end])
+                total += sum(errors[window_end]) - sum(errors[window_start-1])
+                count += len(errors[window_end]) - len(errors[window_start-1])
             if count > 0:
                 file.write(str(window_start) + '|' \
                     + str(window_end) + '|' + '%.2f' % (total/count) + '\n')

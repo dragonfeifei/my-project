@@ -2,12 +2,6 @@ import argparse
 import pandas as pd
 import numpy as np
 
-#def rollBy(what, basis, window, func):
-#    def applyToWindow(val):
-#        chunk = what[(val<=basis) & (basis<val+window)]
-#        return func(chunk)
-#    return basis.apply(applyToWindow)
-
 def rollBy(what, basis, window, func):
     indexed_what = pd.Series(what.values,index=basis.values)
     def applyToWindow(val):
