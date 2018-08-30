@@ -38,28 +38,26 @@ def main(actual_price_file, predicted_price_file, window_size_file, output_file)
     # latest hour of actual prices
     end_time = max(actual.keys())
 
-    ''' Data structure for holding 'errors' between actual and
-        predicted prices
+
+    ''' Data structure for holding stats of 'errors' between
+        actual and predicted prices
     
-    The outer dict uses 'time' as key. Value is a list contains
-    all the 'errors' between matched stock prices in actual and
-    predicted files.
+    The outer dict uses 'time' as key. Value is a tuple contains
+    the sum of all errors at this hour and the number of all 
+    errors at this hour. time -> (sum, num)
+
     e.g. 
     {
-        1: [ 0.01, 0.02, 0.03, 0.04 ]
-        2: [ 0.02, 0.02 ]
+        1: (0.10, 4)
+        2: (0.20, 2)
     }
-
-    Note: 1. only 'errors' of 'matched' stocks will be stored;
-          2. stock names are not stored as they're not needed
-             for avg_error calculation;
     '''
-    errors = defaultdict(list)
+    stats = defaultdict(lambda: (0.0, 0))
 
     # scan through predicted file to:
     # 1. find 'matched' stock
-    # 2. calculate differences
-    # 3. populate data structure
+    # 2. calculate errors
+    # 3. update stats
     with open(predicted_price_file, 'r') as file:
         reader = csv.reader(file, delimiter='|')
         for row in reader:
@@ -70,8 +68,9 @@ def main(actual_price_file, predicted_price_file, window_size_file, output_file)
                 price = float(row[2])
                 # check whether we have a match
                 if time in actual and stock in actual[time]:
-                    error = abs(price - actual[time][stock])
-                    errors[time].append(error)
+                    error = abs(price - actual[time][stock]) 
+                    s, n = stats[time]
+                    stats[time] = (s + error, n + 1)
 
     ''' Sliding a window for avg_error calculation
     
@@ -126,13 +125,13 @@ def main(actual_price_file, predicted_price_file, window_size_file, output_file)
             if first:
                 # for first window, we have to add them up one by one
                 for time in range(window_start, window_end+1):
-                    total+=sum(errors[time])
-                    count+=len(errors[time])
+                    total += stats[time][0]
+                    count += stats[time][1]
                 first = False
             else:
                 # for following windows, we only need to add the diff
-                total += sum(errors[window_end]) - sum(errors[window_start-1])
-                count += len(errors[window_end]) - len(errors[window_start-1])
+                total += stats[window_end][0] - stats[window_start-1][0]
+                count += stats[window_end][1] - stats[window_start-1][1]
             
             if count > 0:
                 # if at least we have one value in this window
@@ -144,8 +143,8 @@ def main(actual_price_file, predicted_price_file, window_size_file, output_file)
                     + str(window_end) + '|NA\n')
 
             # moving the window    
-            window_start+=1
-            window_end+=1
+            window_start += 1
+            window_end += 1
 
 if __name__ == "__main__":
 
