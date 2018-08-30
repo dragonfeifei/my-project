@@ -11,8 +11,8 @@ The key is finding all the matched errors, organizing intermediate stats by time
 
 ## Optimizations:
 1. Nested dictionary is used for quickly finding specific stock price at specific hour
-1. Specical data structure is used for storing sum of errors and num of errors at specific hour
-1. total/count of errors for one window is calculated based on previous window's results
+1. Specical data structure is used for storing sum of errors and num of errors for specific hour
+1. Average errors for one window is calculated based on previous window's results (see comments in source file for details)
 
 ## Dependencies:
 ### Python (following Python Standard Libs are used):
